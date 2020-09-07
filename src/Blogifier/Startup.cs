@@ -3,6 +3,7 @@ using Blogifier.Core.Extensions;
 using Blogifier.Widgets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,9 +38,9 @@ namespace Blogifier
             services.AddFeatureManagement().AddFeatureFilter<EmailFeatureFilter>();
 
             services.AddRouting(options => options.LowercaseUrls = true);
-            services.AddControllersWithViews().AddViewLocalization(); 
-            
-            services.AddRazorPages(options => 
+            services.AddControllersWithViews().AddViewLocalization();
+
+            services.AddRazorPages(options =>
                 options.Conventions.AuthorizeFolder("/Admin")
                 .AllowAnonymousToPage("/Admin/_Host")
             ).AddRazorRuntimeCompilation().AddViewLocalization();
@@ -47,7 +48,15 @@ namespace Blogifier
             services.AddServerSideBlazor();
 
             //services.AddHttpContextAccessor();
-            
+            services.Configure<CookiePolicyOptions>(options =>
+            {
+                options.MinimumSameSitePolicy = SameSiteMode.Unspecified;
+                options.OnAppendCookie = cookieContext =>
+                    CheckSameSite(cookieContext.Context, cookieContext.CookieOptions);
+                options.OnDeleteCookie = cookieContext =>
+                    CheckSameSite(cookieContext.Context, cookieContext.CookieOptions);
+            });
+
             services.AddToaster(config =>
             {
                 config.PositionClass = Defaults.Classes.Position.BottomRight;
@@ -57,7 +66,17 @@ namespace Blogifier
 
             services.AddBlogServices();
         }
+        private void CheckSameSite(HttpContext httpContext, CookieOptions options)
+        {
+            if (options.SameSite == SameSiteMode.None)
+            {
+                var userAgent = httpContext.Request.Headers["User-Agent"].ToString();
+                // TODO: Use your User Agent library of choice here.
+                // For .NET Core < 3.1 set SameSite = (SameSiteMode)(-1)
+                options.SameSite = SameSiteMode.Unspecified;
 
+            }
+        }
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
@@ -98,5 +117,6 @@ namespace Blogifier
                 endpoints.MapFallbackToPage("/Admin/_Host");
             });
         }
+
     }
 }
